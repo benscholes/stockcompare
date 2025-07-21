@@ -123,12 +123,14 @@
       const startTime = Math.floor(new Date(start).getTime() / 1000);
       const endTime = Math.floor(new Date(end).getTime() / 1000);
 
-      const url = `https://query1.finance.yahoo.com/v7/finance/download/${ticker}?period1=${startTime}&period2=${endTime}&interval=1d&events=history&includeAdjustedClose=true`;
+      const url = `https://corsproxy.io/?url=` + encodeURIComponent(
+        `https://query1.finance.yahoo.com/v7/finance/download/${ticker}?period1=${startTime}&period2=${endTime}&interval=1d&events=history&includeAdjustedClose=true`
+      );
 
       try {
         const res = await fetch(url);
         const csv = await res.text();
-
+        console.log(`Fetching data from: ${url}`);
         const rows = csv.split('\n').slice(1); // skip header
         const prices = rows.map(row => {
           const [date, , , , close] = row.split(',');
