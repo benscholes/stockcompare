@@ -25,10 +25,14 @@
     }
     .ticker-row {
       display: flex;
+      gap: 5px;
       margin-bottom: 10px;
     }
     .ticker-row input {
       flex: 1;
+    }
+    .ticker-row button {
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -52,9 +56,11 @@
     <div id="tickerInputs">
       <div class="ticker-row">
         <input type="text" class="ticker" value="QQQ" />
+        <button onclick="deleteTickerRow(this)">❌</button>
       </div>
       <div class="ticker-row">
         <input type="text" class="ticker" placeholder="Enter ticker..." />
+        <button onclick="deleteTickerRow(this)">❌</button>
       </div>
     </div>
     <button onclick="addTickerRow()">Add Ticker</button>
@@ -77,8 +83,16 @@
       const container = document.getElementById('tickerInputs');
       const div = document.createElement('div');
       div.className = 'ticker-row';
-      div.innerHTML = '<input type="text" class="ticker" placeholder="Enter ticker...">';
+      div.innerHTML = `
+        <input type="text" class="ticker" placeholder="Enter ticker...">
+        <button onclick="deleteTickerRow(this)">❌</button>
+      `;
       container.appendChild(div);
+    }
+
+    function deleteTickerRow(button) {
+      const row = button.parentElement;
+      row.remove();
     }
 
     async function updateGraph() {
@@ -90,8 +104,8 @@
         .filter(t => t);
 
       const datasets = await Promise.all(tickers.map(async (ticker) => {
-        const prices = await fetchStockData(ticker, startDate, endDate);
-        if (!prices) return null;
+        const prices = await fetchYahooData(ticker, startDate, endDate);
+        if (!prices || prices.length === 0) return null;
 
         return {
           label: ticker,
@@ -105,17 +119,28 @@
       investmentChart.update();
     }
 
-    async function fetchStockData(ticker, start, end) {
-      try {
-        const apiKey = 'demo'; // Replace with a real API key
-        const url = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1day&start_date=${start}&end_date=${end}&apikey=${apiKey}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!data.values) throw new Error('No data');
+    async function fetchYahooData(ticker, start, end) {
+      const startTime = Math.floor(new Date(start).getTime() / 1000);
+      const endTime = Math.floor(new Date(end).getTime() / 1000);
 
-        return data.values.map(v => ({ date: v.datetime, close: parseFloat(v.close) })).reverse();
+      const url = `https://query1.finance.yahoo.com/v7/finance/download/${ticker}?period1=${startTime}&period2=${endTime}&interval=1d&events=history&includeAdjustedClose=true`;
+
+      try {
+        const res = await fetch(url);
+        const csv = await res.text();
+
+        const rows = csv.split('\n').slice(1); // skip header
+        const prices = rows.map(row => {
+          const [date, , , , close] = row.split(',');
+          return {
+            date,
+            close: parseFloat(close)
+          };
+        }).filter(p => !isNaN(p.close));
+
+        return prices;
       } catch (err) {
-        console.error(`Error fetching data for ${ticker}:`, err);
+        console.error(`Error fetching Yahoo data for ${ticker}:`, err);
         return null;
       }
     }
